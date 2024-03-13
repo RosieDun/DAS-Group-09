@@ -1,0 +1,123 @@
+---
+title: "zhixuan(2)"
+format: html
+editor: visual
+---
+
+```{r}
+library(readr)
+library(ggplot2) 
+library(plotly) 
+library(stats)
+library(dplyr) 
+library(knitr) 
+library(sjPlot)
+
+data <- read_csv("dataset09.csv") 
+print(data)
+```
+
+```{r}
+#EDA 
+ggplot(data, aes(x = genre, y = rating)) + geom_boxplot(outlier.shape = NA) + labs(x = "Genre", y = "Rating") + theme_minimal()
+
+ggplot(data, aes(x = length, y = rating)) + geom_point() + geom_smooth(method = "lm", se = FALSE) + labs(x = "Length", y = "Rating")
+```
+
+```{r}
+# use mean replace NA,dichotomising rating
+
+mean_length <- mean(data$length, na.rm = TRUE)  
+data$length[is.na(data$length)] <- mean_length
+data$rating <- ifelse(data$rating >= 7, 1, 0)
+print(data)
+
+ggplot(data, aes(x = factor(rating), y = budget)) + geom_boxplot(outlier.shape = NA) + labs(x = "Rating", y = "Budget")
+
+ggplot(data, aes(x = factor(rating), y = year)) + geom_boxplot(outlier.shape = NA) + labs(x = "Rating", y = "Year")
+```
+
+```{r}
+# full GLM
+data_encoded <- model.matrix(~ . + 0, data = data)
+data_encoded <- cbind(constant = 1, data_encoded)
+X <- data_encoded[, -grep("rating", colnames(data_encoded))]
+y <- data$rating
+
+model <- glm(y ~ ., data = as.data.frame(X), family = binomial())
+summary(model)
+```
+
+```{r}
+#categorical explanatory variable 
+data_gen <- data %>%
+  group_by(genre, rating) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(percentage = count / sum(count) * 100)
+print(data_gen)
+
+ggplot(data_gen, aes(x = genre, y = percentage, fill = factor(rating))) + geom_bar(stat = "identity", position = "dodge") + labs(x = "Genre", y = "Proportion", title = "Proportion of ratings by genre") + scale_fill_discrete(name = "Rating") + theme_minimal()
+```
+
+```{r}
+# Log-odds
+X <- data$genre
+y <- data$rating
+X_encoded <- model.matrix(~ genre - 1, data = data)
+X_encoded <- cbind(1, X_encoded)
+
+model2 <- glm(y ~ ., data = as.data.frame(X_encoded), family = binomial())
+summary(model2)
+conf_intervals <- confint(model2)
+conf_intervals %>%
+  kable()
+
+summary_df <- summary(model2)
+summary_df[is.na(summary_df)] <- 0
+summary_df
+plot_model(model2, show.values = TRUE, title = "Log-Odds", 
+           show.p = FALSE, terms = c("genreAction", "genreAnimation", "genreComedy", "genreDocumentary", "genreDrama", "genreRomance", "genreShort"),
+           values = summary_df$estimate)
+```
+
+```{r}
+# Odds
+coef_exp <- exp(coef(model2))
+print("Genre Coefficients (Exponential):")
+print(coef_exp)
+
+coef_exp_df <- as.data.frame(coef_exp)
+coef_exp_df[is.na(coef_exp_df)] <- 0
+coef_exp_df
+plot_model(model2, show.values = TRUE, title = "Odds", 
+           show.p = FALSE, terms = c("genreAction", "genreAnimation", "genreComedy", "genreDocumentary", "genreDrama", "genreRomance", "genreShort"),
+           values = coef_exp_df)
+```
+
+```{r}
+# Hierarchical assigned scores
+data <- mutate(data, genre = ifelse(genre %in% c("Documentary","Short"), 3,                                ifelse(genre %in% c("Comedy", "Animation"), 2,                       ifelse(genre %in% c("Action", "Drama", "Romance"), 1, genre))))
+print(data)
+dev.new()
+boxplot(votes ~ genre, data = data, outline = FALSE,xlab = "genre", ylab = "votes")
+
+# numerical explanatory variable
+model3 <- glm(rating ~ ., data = data, family = binomial())
+summary(model3)
+```
+
+```{r}
+# Probabilities
+print("Coefficients:")
+print(coef(model3))
+print("\nConfidence Intervals:")
+print(confint(model3))
+
+probabilities <- exp(coef(model3)) / (1 + exp(coef(model3)))
+print("\nProbabilities:")
+for (i in 1:length(probabilities)) {
+  cat(names(probabilities)[i], ": ", probabilities[i], "\n")
+}
+#In the end,length,budget and genre are the main influence on the film's seven points
+```

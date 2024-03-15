@@ -1,5 +1,5 @@
 ---
-title: "xxx"
+title: "The analysis of variables influencing movie ratings"
 author: "Group 09"
 number-sections: true
 format: 
@@ -27,6 +27,8 @@ library(sjPlot)
 library(stats)
 library(jtools)
 library(kableExtra)
+library(GGally)
+library(caret)
 ```
 
 ## Introduction
@@ -64,6 +66,11 @@ The film data set obtained from IMDB contains the following variables:
 film <- read.csv("dataset09.csv") %>% 
   mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
   mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
+set.seed(123)
+index <- createDataPartition(film$Rating, p = 0.8, list = FALSE)
+
+film_train <- data[index, ]
+film_test <- data[-index, ]
 
 #Create summary
 film %>% 
@@ -74,14 +81,6 @@ It is now established that film_id will not be used as an explanatory variable s
 
 When it comes to the data set, there seems to be an issue with the length variable as there are 127 rows where this information is missing.
 
-```{r}
-#Find the missing value of length
-film %>% 
-  filter(is.na(length)) %>% 
-  skim()
-```
-
-From the summary above it is easy to see that the distribution of these 127 rows is fairly similar to that of the complete data set ( This is made evident when comparing the histograms of the filtered data set to those of the complete data set ).
 
 ```{r}
 #Group by genre and select the variables 'genre' and 'length'
@@ -91,7 +90,7 @@ film %>%
   skim()
 ```
 
-It is evident in from the summary table above that the length distribution is not equal amongst different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
+It is evident in from the summary table above that the length distribution is not equal among different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
 
 ```{r}
 #Median length of each genre
@@ -115,68 +114,14 @@ film <- film %>%
 The last step before fitting the Logistic Regression model is analysing the data set to identify possible patterns.
 
 ```{r}
-#These are just some simple plots. Please add more plots as necessary. 
-#If a certain plot is needed in the power point presentation please write its code here. 
-```
-
-```{r}
 #| echo: true
-#| label: fig-boxplot_1
-#| fig-cap: Boxplot of Year by Rating
+#| label: fig_1
+#| fig-cap: graphical and numberical summaries of the relationships between pairs of variables
 #| fig-width: 8
 #| fig-height: 5
 #| fig-align: center
-
-#Plot target variable against year covariate 
-film %>% ggplot(aes(x=Rating, y=year, colour=Rating)) + 
-  geom_boxplot() + 
-  theme(legend.position="none") +
-  labs(x="Rating", y="Year")
-```
-
-```{r}
-#| echo: true
-#| label: fig-boxplot_2
-#| fig-cap: Boxplot of Length by Rating
-#| fig-width: 8
-#| fig-height: 5
-#| fig-align: center
-
-#Plot target variable against length covariate 
-film %>% ggplot(aes(x=Rating, y=length, colour=Rating)) + 
-  geom_boxplot() + 
-  theme(legend.position="none") +
-  labs(x="Rating", y="Length")
-```
-
-```{r}
-#| echo: true
-#| label: fig-boxplot_3
-#| fig-cap: Boxplot of Budget by Rating
-#| fig-width: 8
-#| fig-height: 5
-#| fig-align: center
-
-#Plot target variable against budget covariate 
-film %>% ggplot(aes(x=Rating, y=budget, colour=Rating)) + 
-  geom_boxplot() + 
-  theme(legend.position="none") +
-  labs(x="Rating", y="Budget")
-```
-
-```{r}
-#| echo: true
-#| label: fig-boxplot_4
-#| fig-cap: Boxplot of Votes by Rating
-#| fig-width: 8
-#| fig-height: 5
-#| fig-align: center
-
-#Plot target variable against votes covariate 
-film %>% ggplot(aes(x=Rating, y=votes, colour=Rating)) + 
-  geom_boxplot() + 
-  theme(legend.position="none") +
-  labs(x="Rating", y="Votes")
+film$Rating <- as.factor(film$Rating) 
+ggpairs(film[,c(2,3,4,5,7,9)], aes(colour = Rating, alpha = 0.4)) 
 ```
 
 ```{r}
@@ -188,11 +133,7 @@ film %>% ggplot(aes(x=Rating, y=votes, colour=Rating)) +
 #| fig-align: center
 
 #Count by genre
-film %>% 
-  ggplot(aes(x=genre, colour=genre)) +
-  geom_bar() +
-  theme(legend.position="none") +
-  labs(y="Count", x="Film genre")
+
 ```
 
 ```{r}

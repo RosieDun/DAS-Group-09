@@ -1,8 +1,33 @@
 ---
-title: "Group_09_Analysis.qmd"
-format: pdf
-editor: visual
+title: "xxx"
+author: "Group 09"
+number-sections: true
+format: 
+  html:
+    embed-resources: true
+    code-tools: true
+  pdf:
+    geometry: "left=2cm, right=2cm, top=2cm, bottom=2cm"
+editor_options: 
+  chunk_output_type: console
+execute:
+  echo: false
+  eval: true
+  warning: false
+  message: false
 ---
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(skimr)
+library(moderndive)
+library(gapminder)
+library(sjPlot)
+library(stats)
+library(jtools)
+library(kableExtra)
+```
 
 ## Introduction
 
@@ -26,7 +51,7 @@ The film data set obtained from IMDB contains the following variables:
 
 -   length - Duration (in minutes)
 
--    budget - Budget for the films production (in \$1000000s)
+-   budget - Budget for the films production (in \$1000000s)
 
 -   votes - Number of positive votes received by viewers
 
@@ -35,16 +60,14 @@ The film data set obtained from IMDB contains the following variables:
 -   rating - IMDB rating from 0-10
 
 ```{r}
-library(tidyverse)
-library(skimr)
-
 #Read data set
 film <- read.csv("dataset09.csv") %>% 
-  #Define target variable
-  mutate(target = ifelse(rating>7,1,0))
+  mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
+  mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
 
 #Create summary
-film %>% skim()
+film %>% 
+  skim()
 ```
 
 It is now established that film_id will not be used as an explanatory variable since it is only an identifier for the film, rather than an informative feature about it. Genre is the only categorical variable contained in the data set. Year, length, budget, and votes are the numerical explanatory variables to be tested in this analysis.
@@ -52,26 +75,39 @@ It is now established that film_id will not be used as an explanatory variable s
 When it comes to the data set, there seems to be an issue with the length variable as there are 127 rows where this information is missing.
 
 ```{r}
-#Skim for the rows with lenght == NA
-film %>% filter(is.na(length)) %>% skim()
+#Find the missing value of length
+film %>% 
+  filter(is.na(length)) %>% 
+  skim()
 ```
 
 From the summary above it is easy to see that the distribution of these 127 rows is fairly similar to that of the complete data set ( This is made evident when comparing the histograms of the filtered data set to those of the complete data set ).
 
 ```{r}
-film %>% group_by(genre) %>% select(genre, length) %>% skim()
+#Group by genre and select the variables 'genre' and 'length'
+film %>% 
+  group_by(genre) %>%
+  select(genre, length) %>%
+  skim()
 ```
 
 It is evident in from the summary table above that the length distribution is not equal amongst different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
 
 ```{r}
-film.median <- film %>% group_by(genre) %>% select(genre, length) %>% summarise(median.length = median(length, na.rm=TRUE))
+#Median length of each genre
+film.median <- film %>%
+  group_by(genre) %>%
+  select(genre, length) %>%
+  summarise(median.length = median(length, na.rm=TRUE))
 film.median
 ```
 
 ```{r}
-#input corresponding genre median for length missing values 
-film <- film %>% inner_join(film.median,by=join_by(genre)) %>% mutate(length=ifelse(is.na(length),median.length,length)) %>% select(-median.length) 
+#Input corresponding genre median for length missing values 
+film <- film %>%
+  inner_join(film.median,by=join_by(genre)) %>%
+  mutate(length=ifelse(is.na(length),median.length,length)) %>%
+  select(-median.length) 
 ```
 
 ## Exploratory Analysis
@@ -84,44 +120,74 @@ The last step before fitting the Logistic Regression model is analysing the data
 ```
 
 ```{r}
-library(ggplot2)
-#plot target variable against year covariate 
-film %>% ggplot(aes(x=factor(target),y=year, colour=factor(target))) + 
+#| echo: true
+#| label: fig-boxplot_1
+#| fig-cap: Boxplot of Year by Rating
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Plot target variable against year covariate 
+film %>% ggplot(aes(x=Rating, y=year, colour=Rating)) + 
   geom_boxplot() + 
   theme(legend.position="none") +
-  labs(x="target")
-  
+  labs(x="Rating", y="Year")
 ```
 
 ```{r}
-library(ggplot2)
-#plot target variable against length covariate 
-film %>% ggplot(aes(x=factor(target),y=length, colour=factor(target))) + 
+#| echo: true
+#| label: fig-boxplot_2
+#| fig-cap: Boxplot of Length by Rating
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Plot target variable against length covariate 
+film %>% ggplot(aes(x=Rating, y=length, colour=Rating)) + 
   geom_boxplot() + 
   theme(legend.position="none") +
-  labs(x="target")
+  labs(x="Rating", y="Length")
 ```
 
 ```{r}
-library(ggplot2)
-#plot target variable against budget covariate 
-film %>% ggplot(aes(x=factor(target),y=budget, colour=factor(target))) + 
+#| echo: true
+#| label: fig-boxplot_3
+#| fig-cap: Boxplot of Budget by Rating
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Plot target variable against budget covariate 
+film %>% ggplot(aes(x=Rating, y=budget, colour=Rating)) + 
   geom_boxplot() + 
   theme(legend.position="none") +
-  labs(x="target")
+  labs(x="Rating", y="Budget")
 ```
 
 ```{r}
-library(ggplot2)
-#plot target variable against votes covariate 
-film %>% ggplot(aes(x=factor(target),y=votes, colour=factor(target))) + 
+#| echo: true
+#| label: fig-boxplot_4
+#| fig-cap: Boxplot of Votes by Rating
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Plot target variable against votes covariate 
+film %>% ggplot(aes(x=Rating, y=votes, colour=Rating)) + 
   geom_boxplot() + 
   theme(legend.position="none") +
-  labs(x="target")
+  labs(x="Rating", y="Votes")
 ```
 
 ```{r}
-#count by genre
+#| echo: true
+#| label: fig-barplot_1
+#| fig-cap: Barplot of count by genre
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Count by genre
 film %>% 
   ggplot(aes(x=genre, colour=genre)) +
   geom_bar() +
@@ -130,7 +196,14 @@ film %>%
 ```
 
 ```{r}
-#proportion of films with rating >7 by genre
+#| echo: true
+#| label: fig-barplot_2
+#| fig-cap: Proportion of films with rating >7 by genre
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+#Proportion of films with rating >7 by genre
 film %>% group_by(genre) %>% 
   summarise(prop = mean(target)) %>% 
   arrange() %>% 
@@ -138,26 +211,12 @@ film %>% group_by(genre) %>%
   geom_col() +
   theme(legend.position="none") +
   labs(y="Proportion with rating > 7", x="Film genre")
-
 ```
 
-```{r}
-
-```
-
-## Model Fitting 
+## Model Fitting
 
 ```{r}
-library(moderndive)
-library(gapminder)
-library(sjPlot)
-library(stats)
-library(jtools)
-library(kableExtra)
-```
-
-```{r}
-# Fit a full model with all possible covariates
+#Fit a full model with all possible covariates
 model1 <- glm(target ~ year + length + budget + votes + genre , data = film, 
              family = binomial(link = "logit"))
 model1 %>%
@@ -168,8 +227,8 @@ The year the film was released is not significant in the model above. This is ex
 
 ```{r}
 #Fit without year, change votes to thousands so the scale is easier to interpret
-model2 <- glm(target ~ length + budget + votes + genre , data = film %>% mutate(votes=votes/1000), 
-             family = binomial(link = "logit"))
+model2 <- glm(target ~ length + budget + votes + genre , data = film %>%
+                mutate(votes=votes/1000), family = binomial(link = "logit"))
 model2 %>%
   summary()
 ```
@@ -184,7 +243,8 @@ mod2coefs
 ```
 
 ```{r}
-#confint(model) 
+confint(model2) %>%
+  kable()
 ```
 
 ```{r}
@@ -193,7 +253,8 @@ plot_model(model2., type = "pred", title = "",
 ```
 
 ```{r}
-film <- film %>% mutate(probs=fitted(model2))
+film <- film %>% 
+  mutate(probs=fitted(model2))
 ```
 
 ```{r}

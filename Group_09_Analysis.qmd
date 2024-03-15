@@ -28,6 +28,7 @@ library(stats)
 library(jtools)
 library(kableExtra)
 library(caret)
+library(pROC)
 ```
 
 ## Introduction
@@ -65,11 +66,6 @@ The film data set obtained from IMDB contains the following variables:
 film <- read.csv("dataset09.csv") %>% 
   mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
   mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
-
-set.seed(123)
-index <- createDataPartition(film$Rating, p = 0.8, list = FALSE)
-film_train <- data[index, ]
-film_test <- data[-index, ]
 
 #Create summary
 film %>% 
@@ -114,6 +110,15 @@ film <- film %>%
   inner_join(film.median,by=join_by(genre)) %>%
   mutate(length=ifelse(is.na(length),median.length,length)) %>%
   select(-median.length) 
+```
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(film$target, p = 0.8, list = FALSE)
+
+film_train <- film[train_index, ]
+film_test <- film[-train_index, ]
+
 ```
 
 ## Exploratory Analysis
@@ -267,8 +272,7 @@ confint(model1_2) %>%
   kable()
 ```
 
-
-The two treatments of length have slightly different impacts on the film. 
+The two treatments of length have slightly different impacts on the film.
 
 ```{r}
 #Fit without categorical variable:genre, change votes to thousands so the scale is easier to interpret
@@ -293,6 +297,7 @@ confint(model2) %>%
 ```
 
 ## Models Comparison
+
 ```{r}
 #AIC
 aic_values <- c(AIC(model1_1), AIC(model1_2), AIC(model2))
@@ -303,20 +308,99 @@ print(models_aic)
 ```
 
 ```{r}
-pred_prob_model1_1 <- predict(model1_1, newdata = test_data, type = "response")
+pred_prob_model1_1 <- predict(model1_1, newdata = film_test, type = "response")
+y1_1_true <- film_test$target
+
+pred_prob_model1_2 <- predict(model1_2, newdata = film_test, type = "response")
+y1_2_true <- film_test$target
+
+pred_prob_model2 <- predict(model2, newdata = film_test, type = "response")
+y2_true <- film_test$target
+```
+
+```{r}
+#ROC plots
+roc_curve <- roc(y1_1_true, pred_prob_model1_1)
+plot(roc_curve, main = "ROC Curve for Model1_1", col = "blue")
+abline(a = 0, b = 1, lty = 2, col = "red")
+auc_value <- round(auc(roc_curve), 2)
+legend("bottomright", legend = paste("AUC =", auc_value), col = "blue", lty = 1, bty = "n")
 
 ```
 
 ```{r}
-# Compute precision for each model
-recall_model1_1 <- conf_matrix_model1$byClass["Recall"]
-recall_model1_2 <- conf_matrix_model2$byClass["Recall"]
-recall_model2 <- conf_matrix_model3$byClass["Recall"]
+roc_curve <- roc(y1_2_true, pred_prob_model1_2)
+plot(roc_curve, main = "ROC Curve for Model1_2", col = "blue")
+abline(a = 0, b = 1, lty = 2, col = "red")
+auc_value <- round(auc(roc_curve), 2)
+legend("bottomright", legend = paste("AUC =", auc_value), col = "blue", lty = 1, bty = "n")
+```
 
-# Compute accuracy for each model
-accuracy_model1_1 <- conf_matrix_model1$overall["Accuracy"]
-accuracy_model1_2 <- conf_matrix_model2$overall["Accuracy"]
-accuracy_model2 <- conf_matrix_model3$overall["Accuracy"]
+```{r}
+roc_curve <- roc(y2_true, pred_prob_model2)
+plot(roc_curve, main = "ROC Curve for Model2", col = "blue")
+abline(a = 0, b = 1, lty = 2, col = "red")
+auc_value <- round(auc(roc_curve), 2)
+legend("bottomright", legend = paste("AUC =", auc_value), col = "blue", lty = 1, bty = "n")
+```
+
+```{r}
+# Compute confusion matrix for each model
+y_pred_model1_1 <- factor(ifelse(pred_prob_model1_1 > 0.5, 1, 0), levels = c(0, 1))
+y1_1_true <- factor(y1_1_true, levels = c(0, 1))
+conf_matrix_model1_1 <- confusionMatrix(y_pred_model1_1, y1_1_true)
+print(conf_matrix_model1_1)
+```
+
+```{r}
+y_pred_model1_2 <- factor(ifelse(pred_prob_model1_2 > 0.5, 1, 0), levels = c(0, 1))
+y1_2_true <- factor(y1_2_true, levels = c(0, 1))
+conf_matrix_model1_2 <- confusionMatrix(y_pred_model1_2, y1_2_true)
+print(conf_matrix_model1_2)
+```
+
+```{r}
+y_pred_model2 <- factor(ifelse(pred_prob_model2 > 0.5, 1, 0), levels = c(0, 1))
+y2_true <- factor(y2_true, levels = c(0, 1))
+conf_matrix_model2 <- confusionMatrix(y_pred_model2, y2_true)
+print(conf_matrix_model2)
+```
+
+```{r}
+#I cant get conf_matrix,sorry
+conf_matrix_data <- data.frame(
+  Actual = as.factor(y1_1_true),
+  Predicted = as.factor(y_pred_model1_1)
+)
+
+conf_matrix_table <- table(conf_matrix_data)
+
+conf_matrix_plot <- ggplot(data = as.data.frame.table(conf_matrix_table), 
+                           aes(x = Var1, y = Var2, fill = Freq)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Actual", y = "Predicted", fill = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(conf_matrix_plot)
+```
+
+```{r}
+# Compute precision
+precision_model1_1 <- conf_matrix_model1_1$byClass["Precision"]
+precision_model1_2 <- conf_matrix_model1_2$byClass["Precision"]
+precision_model2 <- conf_matrix_model2$byClass["Precision"]
+
+# Compute recall
+recall_model1_1 <- conf_matrix_model1_1$byClass["Recall"]
+recall_model1_2 <- conf_matrix_model1_2$byClass["Recall"]
+recall_model2 <- conf_matrix_model2$byClass["Recall"]
+
+# Compute accuracy
+accuracy_model1_1 <- conf_matrix_model1_1$overall["Accuracy"]
+accuracy_model1_2 <- conf_matrix_model1_2$overall["Accuracy"]
+accuracy_model2 <- conf_matrix_model2$overall["Accuracy"]
 
 # Create a data frame to store the metrics
 metrics <- data.frame(Model = c("Model 1_1", "Model 1_2", "Model 2"),
@@ -326,10 +410,6 @@ metrics <- data.frame(Model = c("Model 1_1", "Model 1_2", "Model 2"),
 
 # Print the metrics
 print(metrics)
-```
-
-```{r}
-#obtain the model equation and display it using latek to be able to determine which variables influence a film's success the most 
 ```
 
 ## Conclusion

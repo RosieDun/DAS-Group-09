@@ -225,7 +225,6 @@ film %>% group_by(genre) %>%
 ```
 
 ## Model Fitting
-
 ```{r}
 
 #Fit a full model with all possible covariates
@@ -236,7 +235,7 @@ model1_1 %>%
   summary()
 
 ```
-
+$$ \widehat{y}_\mbox{Rating} = \widehat{\alpha} + \widehat{\beta}_{\mbox{Year}} \cdot{\mbox{Year}} + \widehat{\beta}_{\mbox{Length}} \cdot{\mbox{Length}} + \widehat{\beta}_{\mbox{Budget}} \cdot{\mbox{Budget}} + \widehat{\beta}_{\mbox{Votes}} \cdot{\mbox{Votes}} + \widehat{\beta}_{\mbox{Genre}} \cdot\mathbb{I}_{\mbox{Genre}}(x) $$
 ```{r}
 #set a dataset without NA
 film <- read.csv("dataset09.csv") %>% 
@@ -281,7 +280,7 @@ model2 <- glm(target ~ year +length + budget + votes , data = film_train %>%
 model2 %>%
   summary()
 ```
-
+$$ \widehat{y}_\mbox{Rating} = \widehat{\alpha} + \widehat{\beta}_{\mbox{Year}} \cdot{\mbox{Year}} + \widehat{\beta}_{\mbox{Length}} \cdot{\mbox{Length}} + \widehat{\beta}_{\mbox{Budget}} \cdot{\mbox{Budget}} + \widehat{\beta}_{\mbox{Votes}} \cdot{\mbox{Votes}} $$
 ```{r}
 summ(model2)
 ```

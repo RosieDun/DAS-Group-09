@@ -27,6 +27,7 @@ library(sjPlot)
 library(stats)
 library(jtools)
 library(kableExtra)
+library(caret)
 ```
 
 ## Introduction
@@ -64,6 +65,11 @@ The film data set obtained from IMDB contains the following variables:
 film <- read.csv("dataset09.csv") %>% 
   mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
   mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
+
+set.seed(123)
+index <- createDataPartition(film$Rating, p = 0.8, list = FALSE)
+film_train <- data[index, ]
+film_test <- data[-index, ]
 
 #Create summary
 film %>% 
@@ -216,18 +222,57 @@ film %>% group_by(genre) %>%
 ## Model Fitting
 
 ```{r}
+
 #Fit a full model with all possible covariates
-model1 <- glm(target ~ year + length + budget + votes + genre , data = film, 
+model1_1 <- glm(target ~ year + length + budget + votes + genre , data = film_train, 
              family = binomial(link = "logit"))
-model1 %>%
+#The length in 1_1 the NA value in length is replaced by median
+model1_1 %>%
+  summary()
+
+```
+
+```{r}
+#set a dataset without NA
+film <- read.csv("dataset09.csv") %>% 
+  mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
+  mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
+film_without<- na.omit(film)
+
+#The length in 1_2 the NA value in length is removed
+model1_2 <- glm(target ~ year + length + budget + votes + genre , data = film_train, 
+             family = binomial(link = "logit"))
+model1_2 %>%
   summary()
 ```
 
-The year the film was released is not significant in the model above. This is expected as the year a certain movie was released might not say much about its success on IMDB.
+```{r}
+summ(model1_1)
+summ(model1_2)
+```
 
 ```{r}
-#Fit without year, change votes to thousands so the scale is easier to interpret
-model2 <- glm(target ~ length + budget + votes + genre , data = film %>%
+mod1_1coefs <- round(coef(model1_1), 3)
+mod1_1coefs
+
+confint(model1_1) %>%
+  kable()
+```
+
+```{r}
+mod1_2coefs <- round(coef(model1_2), 3)
+mod1_2coefs
+
+confint(model1_2) %>%
+  kable()
+```
+
+
+The two treatments of length have slightly different impacts on the film. 
+
+```{r}
+#Fit without categorical variable:genre, change votes to thousands so the scale is easier to interpret
+model2 <- glm(target ~ year +length + budget + votes , data = film_train %>%
                 mutate(votes=votes/1000), family = binomial(link = "logit"))
 model2 %>%
   summary()
@@ -247,14 +292,40 @@ confint(model2) %>%
   kable()
 ```
 
+## Models Comparison
 ```{r}
-plot_model(model2., type = "pred", title = "",
-            axis.title = c("Ethnicity", "Prob. of instructor being male"))
+#AIC
+aic_values <- c(AIC(model1_1), AIC(model1_2), AIC(model2))
+models_aic <- data.frame(Model = c("model1_1", "model1_2", "model2"),
+                         AIC = aic_values)
+
+print(models_aic)
 ```
 
 ```{r}
-film <- film %>% 
-  mutate(probs=fitted(model2))
+pred_prob_model1_1 <- predict(model1_1, newdata = test_data, type = "response")
+
+```
+
+```{r}
+# Compute precision for each model
+recall_model1_1 <- conf_matrix_model1$byClass["Recall"]
+recall_model1_2 <- conf_matrix_model2$byClass["Recall"]
+recall_model2 <- conf_matrix_model3$byClass["Recall"]
+
+# Compute accuracy for each model
+accuracy_model1_1 <- conf_matrix_model1$overall["Accuracy"]
+accuracy_model1_2 <- conf_matrix_model2$overall["Accuracy"]
+accuracy_model2 <- conf_matrix_model3$overall["Accuracy"]
+
+# Create a data frame to store the metrics
+metrics <- data.frame(Model = c("Model 1_1", "Model 1_2", "Model 2"),
+                      Precision = c(precision_model1_1, precision_model1_2, precision_model2),
+                      Recall = c(recall_model1_1, recall_model1_2, recall_model2),
+                      Accuracy = c(accuracy_model1_1, accuracy_model1_2, accuracy_model2))
+
+# Print the metrics
+print(metrics)
 ```
 
 ```{r}

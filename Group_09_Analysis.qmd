@@ -66,11 +66,6 @@ The film data set obtained from IMDB contains the following variables:
 film <- read.csv("dataset09.csv") %>% 
   mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
   mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
-set.seed(123)
-index <- createDataPartition(film$Rating, p = 0.8, list = FALSE)
-
-film_train <- data[index, ]
-film_test <- data[-index, ]
 
 #Create summary
 film %>% 
@@ -109,6 +104,15 @@ film <- film %>%
   select(-median.length) 
 ```
 
+```{r}
+set.seed(123)
+train_index <- createDataPartition(film$target, p = 0.8, list = FALSE)
+
+film_train <- film[train_index, ]
+film_test <- film[-train_index, ]
+```
+
+
 ## Exploratory Analysis
 
 The last step before fitting the Logistic Regression model is analysing the data set to identify possible patterns.
@@ -126,32 +130,31 @@ ggpairs(film[,c(2,3,4,5,7,9)], aes(colour = Rating, alpha = 0.4))
 
 ```{r}
 #| echo: true
-#| label: fig-barplot_1
-#| fig-cap: Barplot of count by genre
-#| fig-width: 8
-#| fig-height: 5
-#| fig-align: center
-
-#Count by genre
-
+#| label: tbl_1
+#| tbl-cap: Summary of counts by genre
+#| tbl-width: 8
+#| tbl-height: 5
+#| tbl-align: center
+# To show original counts
+film %>% 
+  tabyl(genre, Rating) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() 
 ```
 
 ```{r}
 #| echo: true
-#| label: fig-barplot_2
-#| fig-cap: Proportion of films with rating >7 by genre
+#| label: fig_2
+#| fig-cap: Proportion of Movie Ratings by Genre
 #| fig-width: 8
 #| fig-height: 5
 #| fig-align: center
 
 #Proportion of films with rating >7 by genre
-film %>% group_by(genre) %>% 
-  summarise(prop = mean(target)) %>% 
-  arrange() %>% 
-  ggplot(aes(x=genre, y=prop, colour=genre)) +
-  geom_col() +
-  theme(legend.position="none") +
-  labs(y="Proportion with rating > 7", x="Film genre")
+ggplot(film, aes(x= Rating,  y = ..prop.., group=genre, fill=genre)) + 
+    geom_bar(position="dodge", stat="count") +
+    labs(y = "Proportion")
 ```
 
 ## Model Fitting

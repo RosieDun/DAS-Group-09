@@ -9,7 +9,7 @@ format:
   pdf:
     geometry: "left=2cm, right=2cm, top=2cm, bottom=2cm"
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 execute:
   echo: false
   eval: true
@@ -106,7 +106,7 @@ film.median
 #Input corresponding genre median for length missing values 
 film <- film %>%
   inner_join(film.median,by=join_by(genre)) %>%
-  mutate(length=ifelse(is.na(length),median.length,length)) %>%
+  mutate(had_NAS=ifelse(is.na(length),TRUE,FALSE),length=ifelse(is.na(length),median.length,length)) %>%
   select(-median.length) 
 ```
 

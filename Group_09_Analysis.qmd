@@ -1,5 +1,5 @@
 ---
-title: "The analysis of variables influencing movie ratings"
+title: "Estimating the variables that influence a films sucess in IMDB"
 author: "Group 09"
 number-sections: true
 format: 
@@ -11,7 +11,7 @@ format:
 editor_options: 
   chunk_output_type: inline
 execute:
-  echo: false
+  echo: true
   eval: true
   warning: false
   message: false
@@ -29,6 +29,8 @@ library(jtools)
 library(kableExtra)
 library(GGally)
 library(caret)
+library(pROC)
+library(janitor)
 ```
 
 ## Introduction
@@ -76,7 +78,6 @@ It is now established that film_id will not be used as an explanatory variable s
 
 When it comes to the data set, there seems to be an issue with the length variable as there are 127 rows where this information is missing.
 
-
 ```{r}
 #Group by genre and select the variables 'genre' and 'length'
 film %>% 
@@ -85,7 +86,7 @@ film %>%
   skim()
 ```
 
-It is evident in from the summary table above that the length distribution is not equal among different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
+It is evident from the summary table above that the length distribution is not equal among different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
 
 ```{r}
 #Median length of each genre
@@ -104,15 +105,6 @@ film <- film %>%
   select(-median.length) 
 ```
 
-```{r}
-set.seed(123)
-train_index <- createDataPartition(film$target, p = 0.8, list = FALSE)
-
-film_train <- film[train_index, ]
-film_test <- film[-train_index, ]
-```
-
-
 ## Exploratory Analysis
 
 The last step before fitting the Logistic Regression model is analysing the data set to identify possible patterns.
@@ -120,13 +112,15 @@ The last step before fitting the Logistic Regression model is analysing the data
 ```{r}
 #| echo: true
 #| label: fig_1
-#| fig-cap: graphical and numberical summaries of the relationships between pairs of variables
+#| fig-cap: Graphical and numerical summaries of the relationships between pairs of variables
 #| fig-width: 8
 #| fig-height: 5
 #| fig-align: center
 film$Rating <- as.factor(film$Rating) 
-ggpairs(film[,c(2,3,4,5,7,9)], aes(colour = Rating, alpha = 0.4)) 
+ggpairs(film[,c(2,3,4,5,9)], aes(colour = Rating, alpha = 0.4), title="Pair plots") 
 ```
+
+In the plot above we can check the correlation between the different covariates. They all maintain a low correlation coefficient and their scatter plots do not seem to show any linear relationship between them. This means these variables can be included in a logistic regression model without suspecting multicolinearity.
 
 ```{r}
 #| echo: true
@@ -152,178 +146,9 @@ film %>%
 #| fig-align: center
 
 #Proportion of films with rating >7 by genre
-ggplot(film, aes(x= Rating,  y = ..prop.., group=genre, fill=genre)) + 
+ggplot(film, aes(x= Rating,  y = after_stat(prop), group=genre, fill=genre)) + 
     geom_bar(position="dodge", stat="count") +
     labs(y = "Proportion")
-```
-
-## Model Fitting
-
-```{r}
-#Fit a full model with all possible covariates
-model1 <- glm(target ~ year + length + budget + votes + genre , data = film, 
-             family = binomial(link = "logit"))
-model1 %>%
-  summary()
-```
-
-The year the film was released is not significant in the model above. This is expected as the year a certain movie was released might not say much about its success on IMDB.
-
-```{r}
-#Fit without year, change votes to thousands so the scale is easier to interpret
-model2 <- glm(target ~ length + budget + votes + genre , data = film %>%
-                mutate(votes=votes/1000), family = binomial(link = "logit"))
-model2 %>%
-  summary()
-```
-
-```{r}
-summ(model2)
-```
-
-```{r}
-mod2coefs <- round(coef(model2), 3)
-mod2coefs
-```
-
-```{r}
-confint(model2) %>%
-  kable()
-```
-
-```{r}
-plot_model(model2., type = "pred", title = "",
-            axis.title = c("Ethnicity", "Prob. of instructor being male"))
-```
-
-```{r}
-film <- film %>% 
-  mutate(probs=fitted(model2))
-```
-
-```{r}
-#obtain the model equation and display it using latek to be able to determine which variables influence a film's success the most 
-```
-
-## Conclusion
-
-```{r}
-#Write a conclusion about which variables were non-significant, which were significant and how much they influence the probability of having a score >7
-```
-
-
-
-```{r}
-library(ggplot2)
-library(tidyverse)
-library(skimr)
-library(moderndive)
-library(gapminder)
-library(sjPlot)
-library(stats)
-library(jtools)
-library(kableExtra)
-library(caret)
-library(pROC)
-```
-
-## Introduction
-
-The following analysis aims to understand the relationship between a set of descriptive variables about a film and its success measured by its respective IMDB rating.
-
-The central question around this analysis will be the following: **Which properties of films influence whether they are rated by IMDB as greater than 7 or not?**
-
-From this question it is established that the target variable will be binary and hence a Logistic Regression model seems reasonable for this scenario. It is also established that missing variables ( in case they are found ) will be inputted with a summary statistic like mean or median if the distribution of this subset is similar to that of the complete data set, otherwise they will be deleted if they do not represent a large portion of the data set.
-
-Throughout this analysis a full model will be fitted taking into account all numerical and categorical variables in the data set. Then the best performing model will be selected and it will only include those variables which are found to be significant.
-
-Finally, a short summary of the model and answers to the analysis question will be found in the conclusion section.
-
-## Data Cleaning
-
-The film data set obtained from IMDB contains the following variables:
-
--   film.id - The unique identifier for the film
-
--   year - Year of release of the film in cinemas
-
--   length - Duration (in minutes)
-
--   budget - Budget for the films production (in \$1000000s)
-
--   votes - Number of positive votes received by viewers
-
--   genre - Genre of the film
-
--   rating - IMDB rating from 0-10
-
-```{r}
-#Read data set
-film <- read.csv("dataset09.csv") %>% 
-  mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
-  mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
-
-#Create summary
-film %>% 
-  skim()
-```
-
-It is now established that film_id will not be used as an explanatory variable since it is only an identifier for the film, rather than an informative feature about it. Genre is the only categorical variable contained in the data set. Year, length, budget, and votes are the numerical explanatory variables to be tested in this analysis.
-
-When it comes to the data set, there seems to be an issue with the length variable as there are 127 rows where this information is missing.
-
-```{r}
-#Find the missing value of length
-film %>% 
-  filter(is.na(length)) %>% 
-  skim()
-```
-
-From the summary above it is easy to see that the distribution of these 127 rows is fairly similar to that of the complete data set ( This is made evident when comparing the histograms of the filtered data set to those of the complete data set ).
-
-```{r}
-#Group by genre and select the variables 'genre' and 'length'
-film %>% 
-  group_by(genre) %>%
-  select(genre, length) %>%
-  skim()
-```
-
-It is evident in from the summary table above that the length distribution is not equal amongst different film genres and therefore the missing film lengths will be handled by adding the median film length by genre to its corresponding missing columns (the mean is not used to avoid outlier influence). The different behaviour between genre and film length was expected, especially because one category is called "Short".
-
-```{r}
-#Median length of each genre
-film.median <- film %>%
-  group_by(genre) %>%
-  select(genre, length) %>%
-  summarise(median.length = median(length, na.rm=TRUE))
-film.median
-```
-
-```{r}
-#Input corresponding genre median for length missing values 
-film <- film %>%
-  inner_join(film.median,by=join_by(genre)) %>%
-  mutate(length=ifelse(is.na(length),median.length,length)) %>%
-  select(-median.length) 
-```
-
-```{r}
-set.seed(123)
-train_index <- createDataPartition(film$target, p = 0.8, list = FALSE)
-
-film_train <- film[train_index, ]
-film_test <- film[-train_index, ]
-
-```
-
-## Exploratory Analysis
-
-The last step before fitting the Logistic Regression model is analysing the data set to identify possible patterns.
-
-```{r}
-#These are just some simple plots. Please add more plots as necessary. 
-#If a certain plot is needed in the power point presentation please write its code here. 
 ```
 
 ```{r}
@@ -423,9 +248,8 @@ film %>% group_by(genre) %>%
 ## Model Fitting
 
 ```{r}
-
 #Fit a full model with all possible covariates
-model1_1 <- glm(target ~ year + length + budget + votes + genre , data = film_train, 
+model1_1 <- glm(target ~ year + length + budget + votes + genre , data = film, 
              family = binomial(link = "logit"))
 #The length in 1_1 the NA value in length is replaced by median
 model1_1 %>%
@@ -433,17 +257,15 @@ model1_1 %>%
 
 ```
 
-$$ \widehat{y}_\mbox{Rating} = \widehat{\alpha} + \widehat{\beta}_{\mbox{Year}} \cdot{\mbox{Year}} + \widehat{\beta}_{\mbox{Length}} \cdot{\mbox{Length}} + \widehat{\beta}_{\mbox{Budget}} \cdot{\mbox{Budget}} + \widehat{\beta}_{\mbox{Votes}} \cdot{\mbox{Votes}} + \widehat{\beta}_{\mbox{Genre}} \cdot\mathbb{I}_{\mbox{Genre}}(x) $$
-
 ```{r}
 #set a dataset without NA
-film <- read.csv("dataset09.csv") %>% 
+film_without <- read.csv("dataset09.csv") %>% 
   mutate(target = ifelse(rating>7, 1, 0)) %>%  #Define target variable
   mutate(Rating = ifelse(rating>7, ">7", "<=7"))  #Define Rating variable help us get better data visualisation
-film_without<- na.omit(film)
+film_without<- na.omit(film_without)
 
 #The length in 1_2 the NA value in length is removed
-model1_2 <- glm(target ~ year + length + budget + votes + genre , data = film_train, 
+model1_2 <- glm(target ~ year + length + budget + votes + genre , data = film_without, 
              family = binomial(link = "logit"))
 model1_2 %>%
   summary()
@@ -479,8 +301,6 @@ model2 <- glm(target ~ year +length + budget + votes , data = film_train %>%
 model2 %>%
   summary()
 ```
-
-$$ \widehat{y}_\mbox{Rating} = \widehat{\alpha} + \widehat{\beta}_{\mbox{Year}} \cdot{\mbox{Year}} + \widehat{\beta}_{\mbox{Length}} \cdot{\mbox{Length}} + \widehat{\beta}_{\mbox{Budget}} \cdot{\mbox{Budget}} + \widehat{\beta}_{\mbox{Votes}} \cdot{\mbox{Votes}} $$
 
 ```{r}
 summ(model2)
@@ -519,6 +339,13 @@ y2_true <- film_test$target
 ```
 
 ```{r}
+#| echo: true
+#| label: fig_9
+#| fig-cap: ROC for Model 1.1
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
 #ROC plots
 roc_curve <- roc(y1_1_true, pred_prob_model1_1)
 plot(roc_curve, main = "ROC Curve for Model1_1", col = "blue")
@@ -529,6 +356,14 @@ legend("bottomright", legend = paste("AUC =", auc_value), col = "blue", lty = 1,
 ```
 
 ```{r}
+#| echo: true
+#| label: fig_10
+#| fig-cap: ROC for Model 1.2
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+
 roc_curve <- roc(y1_2_true, pred_prob_model1_2)
 plot(roc_curve, main = "ROC Curve for Model1_2", col = "blue")
 abline(a = 0, b = 1, lty = 2, col = "red")
@@ -537,6 +372,15 @@ legend("bottomright", legend = paste("AUC =", auc_value), col = "blue", lty = 1,
 ```
 
 ```{r}
+
+#| echo: true
+#| label: fig_11
+#| fig-cap: ROC for Model 2
+#| fig-width: 8
+#| fig-height: 5
+#| fig-align: center
+
+
 roc_curve <- roc(y2_true, pred_prob_model2)
 plot(roc_curve, main = "ROC Curve for Model2", col = "blue")
 abline(a = 0, b = 1, lty = 2, col = "red")
@@ -567,26 +411,6 @@ print(conf_matrix_model2)
 ```
 
 ```{r}
-#I cant get conf_matrix,sorry
-conf_matrix_data <- data.frame(
-  Actual = as.factor(y1_1_true),
-  Predicted = as.factor(y_pred_model1_1)
-)
-
-conf_matrix_table <- table(conf_matrix_data)
-
-conf_matrix_plot <- ggplot(data = as.data.frame.table(conf_matrix_table), 
-                           aes(x = Var1, y = Var2, fill = Freq)) +
-  geom_tile(color = "white") +
-  scale_fill_gradient(low = "white", high = "blue") +
-  labs(x = "Actual", y = "Predicted", fill = "Frequency") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-print(conf_matrix_plot)
-```
-
-```{r}
 # Compute precision
 precision_model1_1 <- conf_matrix_model1_1$byClass["Precision"]
 precision_model1_2 <- conf_matrix_model1_2$byClass["Precision"]
@@ -612,8 +436,29 @@ metrics <- data.frame(Model = c("Model 1_1", "Model 1_2", "Model 2"),
 print(metrics)
 ```
 
-## Conclusion
+## Final model and variable influence
+
+From the different models that were fit we can see that model 1.2 had the best perfomance when it comes to AIC and also classification metrics ( precision, recall and accuracy) so this model will be chosen as the model that describes the influence each covariate has on film rating.
 
 ```{r}
-#Write a conclusion about which variables were non-significant, which were significant and how much they influence the probability of having a score >7
+summary(model1_2)
+```
+
+$$ \log(\frac{p}{1-p}) = \widehat{\beta}_0 + \widehat{\beta}_{1} Year + \widehat{\beta}_{2} Length + \widehat{\beta}_{3} Budget + \widehat{\beta}_4 Votes + \widehat{\beta}_5 \mathbb{I}_{Animation} + \widehat{\beta}_6 \mathbb{I}_{Comedy} + \widehat{\beta}_7 \mathbb{I}_{Documentary} + \widehat{\beta}_8 \mathbb{I}_{Drama} + \widehat{\beta}_9 \mathbb{I}_{Romance} + \widehat{\beta}_{10} \mathbb{I}_{Short}  $$
+
+All covariates were significant except for the animation and short genres, meaning that both of these genres do not have an intercept term which is statistically different to that of the action genre.
+
+```{r}
+coef <- as.data.frame(model1_2$coefficients) 
+coef <- cbind(Variable = rownames(coef), coef)
+rownames(coef) <- 1:nrow(coef)
+colnames(coef) <- c('variable', 'estimate')
+coef <- coef %>% mutate(estimate = exp(estimate))
+
+coef
+```
+
+```{r}
+#Compute the odds for the intercept term (genre: Action)
+
 ```

@@ -296,7 +296,7 @@ The two treatments of length have slightly different impacts on the film.
 
 ```{r}
 #Fit without categorical variable:genre, change votes to thousands so the scale is easier to interpret
-model2 <- glm(target ~ year +length + budget + votes , data = film_train %>%
+model2 <- glm(target ~ year +length + budget + votes , data = film %>%
                 mutate(votes=votes/1000), family = binomial(link = "logit"))
 model2 %>%
   summary()
@@ -328,14 +328,14 @@ print(models_aic)
 ```
 
 ```{r}
-pred_prob_model1_1 <- predict(model1_1, newdata = film_test, type = "response")
-y1_1_true <- film_test$target
+pred_prob_model1_1 <- predict(model1_1, newdata = film, type = "response")
+y1_1_true <- film$target
 
-pred_prob_model1_2 <- predict(model1_2, newdata = film_test, type = "response")
-y1_2_true <- film_test$target
+pred_prob_model1_2 <- predict(model1_2, newdata = film_without, type = "response")
+y1_2_true <- film_without$target
 
-pred_prob_model2 <- predict(model2, newdata = film_test, type = "response")
-y2_true <- film_test$target
+pred_prob_model2 <- predict(model2, newdata = film %>% mutate(votes=votes/1000), type = "response")
+y2_true <- film$target
 ```
 
 ```{r}

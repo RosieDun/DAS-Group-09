@@ -295,8 +295,9 @@ confint(model1_2) %>%
 The two treatments of length have slightly different impacts on the film.
 
 ```{r}
-#Fit without categorical variable
-model2 <- glm(target ~ year +length + budget + votes , data = film, family = binomial(link = "logit"))
+#Fit without categorical variable:genre, change votes to thousands so the scale is easier to interpret
+model2 <- glm(target ~ year +length + budget + votes , data = film %>%
+                mutate(votes=votes/1000), family = binomial(link = "logit"))
 model2 %>%
   summary()
 ```
@@ -333,7 +334,7 @@ y1_1_true <- film$target
 pred_prob_model1_2 <- predict(model1_2, newdata = film_without, type = "response")
 y1_2_true <- film_without$target
 
-pred_prob_model2 <- predict(model2, newdata = film, type = "response")
+pred_prob_model2 <- predict(model2, newdata = film %>% mutate(votes=votes/1000), type = "response")
 y2_true <- film$target
 ```
 
@@ -435,7 +436,7 @@ metrics <- data.frame(Model = c("Model 1_1", "Model 1_2", "Model 2"),
 print(metrics)
 ```
 
-## Conclusion
+## Final model and variable influence
 
 From the different models that were fit we can see that model 1.2 had the best perfomance when it comes to AIC and also classification metrics ( precision, recall and accuracy) so this model will be chosen as the model that describes the influence each covariate has on film rating.
 
@@ -452,7 +453,14 @@ coef <- as.data.frame(model1_2$coefficients)
 coef <- cbind(Variable = rownames(coef), coef)
 rownames(coef) <- 1:nrow(coef)
 colnames(coef) <- c('variable', 'estimate')
-coef <- coef %>% mutate(estimate = estimate)
+coef <- coef %>% mutate(estimate = exp(estimate))
+coef$estimate<-round(coef$estimate,5)
 
-coef %>% kable()
+
+coef
+```
+
+```{r}
+#Compute the odds for the intercept term (genre: Action)
+
 ```
